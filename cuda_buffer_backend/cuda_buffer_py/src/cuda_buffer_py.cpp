@@ -57,6 +57,9 @@ public:
     py::object owner, bool promoted = false)
   : owner_(std::move(owner)), handle_(std::move(handle)), promoted_(promoted)
   {
+    cudaPointerAttributes attributes;
+    CUDA_CHECK(cudaPointerGetAttributes(&attributes, handle_->get_ptr()));
+    device_id_ = attributes.device;
   }
 
   CudaReadHandleWrapper(const CudaReadHandleWrapper &) = delete;
@@ -74,6 +77,7 @@ public:
   }
 
   bool is_closed() const {return !handle_.has_value();}
+  int get_device_id() const {return device_id_;}
 
   py::object get_promoted_buffer() const
   {
@@ -92,6 +96,7 @@ private:
   py::object owner_;
   std::optional<cuda_buffer_backend::ReadHandle> handle_;
   bool promoted_;
+  int device_id_{0};
 };
 
 class CudaWriteHandleWrapper
@@ -103,6 +108,9 @@ public:
   : owner_(std::move(owner)), handle_(std::move(handle)), size_(size), stream_(stream),
     promoted_(promoted)
   {
+    cudaPointerAttributes attributes;
+    CUDA_CHECK(cudaPointerGetAttributes(&attributes, handle_->get_ptr()));
+    device_id_ = attributes.device;
   }
 
   CudaWriteHandleWrapper(const CudaWriteHandleWrapper &) = delete;
@@ -120,6 +128,7 @@ public:
   }
 
   bool is_closed() const {return !handle_.has_value();}
+  int get_device_id() const {return device_id_;}
 
   py::object get_promoted_buffer()
   {
@@ -182,6 +191,7 @@ private:
   size_t size_;
   cudaStream_t stream_;
   bool promoted_;
+  int device_id_{0};
 };
 
 cudaStream_t stream_from_python(const py::object & stream)
@@ -227,6 +237,7 @@ PYBIND11_MODULE(_cuda_buffer_py, module)
 
   py::class_<CudaReadHandleWrapper>(module, "CudaReadHandle")
   .def_property_readonly("device_ptr", &CudaReadHandleWrapper::get_ptr)
+  .def_property_readonly("device_id", &CudaReadHandleWrapper::get_device_id)
   .def_property_readonly("closed", &CudaReadHandleWrapper::is_closed)
   .def("get_ptr", &CudaReadHandleWrapper::get_ptr)
   .def("get_promoted_buffer", &CudaReadHandleWrapper::get_promoted_buffer)
@@ -247,6 +258,7 @@ PYBIND11_MODULE(_cuda_buffer_py, module)
 
   py::class_<CudaWriteHandleWrapper>(module, "CudaWriteHandle")
   .def_property_readonly("device_ptr", &CudaWriteHandleWrapper::get_ptr)
+  .def_property_readonly("device_id", &CudaWriteHandleWrapper::get_device_id)
   .def_property_readonly("closed", &CudaWriteHandleWrapper::is_closed)
   .def("get_ptr", &CudaWriteHandleWrapper::get_ptr)
   .def("get_promoted_buffer", &CudaWriteHandleWrapper::get_promoted_buffer)
